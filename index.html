@@ -1,0 +1,700 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Cube Game! - RMSE Assessment</title>
+    <style>
+        * { box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        body { margin: 0; overflow: hidden; background-color: #f0f4f8; }
+        
+        /* UI Screens & Modals */
+        .screen {
+            position: absolute; top: 0; left: 0; width: 100vw; height: 100vh;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            background: #f0f4f8; z-index: 10; transition: opacity 0.3s;
+        }
+        .modal {
+            position: absolute; top: 0; left: 0; width: 100vw; height: 100vh;
+            display: flex; align-items: center; justify-content: center;
+            background: rgba(0,0,0,0.6); z-index: 20;
+        }
+        .hidden { display: none !important; }
+        
+        /* Cards & Forms */
+        .card {
+            background: white; padding: 40px; border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2); text-align: center; max-width: 500px; width: 90%;
+            max-height: 90vh; overflow-y: auto;
+        }
+        h1, h2 { color: #2c3e50; margin-top: 0; }
+        p { color: #555; line-height: 1.5; font-size: 16px; }
+        input, select {
+            width: 100%; padding: 15px; margin: 10px 0 20px;
+            border: 2px solid #ddd; border-radius: 8px; font-size: 18px;
+        }
+        button {
+            width: 100%; padding: 15px; border: none; border-radius: 8px;
+            background: #3498db; color: white; font-size: 18px; font-weight: bold;
+            cursor: pointer; transition: 0.2s; margin-bottom: 10px;
+        }
+        button:hover { background: #2980b9; }
+        .btn-secondary { background: #95a5a6; }
+        .btn-secondary:hover { background: #7f8c8d; }
+        .btn-danger { background: #e74c3c; }
+        .btn-success { background: #2ecc71; }
+
+        /* Game UI Overlay */
+        #game-ui { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 5; }
+        .hud-panel { pointer-events: auto; background: rgba(255,255,255,0.95); padding: 15px; border-radius: 10px; box-shadow: 0 4px 10px rgba(0,0,0,0.15); }
+        
+        .hud-top-left { position: absolute; top: 20px; left: 20px; }
+        .hud-top-right { position: absolute; top: 20px; right: 20px; width: 150px; text-align: center; }
+        #target-canvas { width: 100%; height: 150px; background: #e9ecef; border-radius: 8px; margin-top: 10px; border: 2px solid #bdc3c7;}
+        
+        .hud-bottom { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); display: flex; gap: 10px; pointer-events: auto; }
+        .hud-bottom button { width: auto; padding: 10px 20px; font-size: 16px; margin: 0; }
+        
+        .hud-bottom-right { position: absolute; bottom: 20px; right: 20px; pointer-events: auto; }
+        .hud-bottom-right button { width: auto; padding: 10px 20px; font-size: 14px; background: #34495e; }
+
+        /* Axes Canvas & Labels */
+        #axes-container { position: absolute; bottom: 20px; left: 20px; width: 120px; height: 120px; pointer-events: none; z-index: 6; }
+        #axes-canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
+        .axis-label { position: absolute; font-weight: bold; font-family: 'Segoe UI', sans-serif; font-size: 16px; transform: translate(-50%, -50%); text-shadow: 1px 1px 2px white, -1px -1px 2px white, 1px -1px 2px white, -1px 1px 2px white; }
+
+        /* Score & Streak Styling */
+        .score-display { font-size: 24px; font-weight: bold; color: #27ae60; }
+        .streak-display { font-size: 18px; font-weight: bold; color: #e67e22; transition: transform 0.2s; }
+        .streak-active { transform: scale(1.2); color: #c0392b; }
+
+        /* Visual Feedback Animations */
+        .feedback-popup {
+            position: absolute; font-size: 2.5rem; font-weight: bold; pointer-events: none;
+            animation: floatUp 1s ease-out forwards; text-shadow: 2px 2px 5px rgba(0,0,0,0.3); z-index: 100;
+        }
+        @keyframes floatUp {
+            0% { opacity: 1; transform: translate(-50%, -50%) scale(0.5); }
+            100% { opacity: 0; transform: translate(-50%, -150px) scale(1.5); }
+        }
+
+        /* Teacher Dashboard Table */
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 13px; }
+        th, td { padding: 10px; border-bottom: 1px solid #ddd; text-align: left; }
+        th { background-color: #3498db; color: white; }
+        .stats-cell { font-size: 11px; color: #555; }
+    </style>
+</head>
+<body>
+
+    <div id="screen-main" class="screen">
+        <div class="card">
+            <h1>Cube Game!</h1>
+            <button onclick="showScreen('screen-student')">Play Game (Student)</button>
+            <button class="btn-secondary" onclick="showScreen('screen-teacher')">Teacher Login</button>
+        </div>
+    </div>
+
+    <div id="screen-student" class="screen hidden">
+        <div class="card">
+            <h2>Player Setup</h2>
+            <div style="text-align: left; margin-bottom: 20px; background: #f8f9fa; padding: 15px; border-radius: 8px;">
+                <p><strong>Goal:</strong> Carve the large block to match the smaller <em>Target Shape</em>.</p>
+                <ul style="color: #555; padding-left: 20px; font-size: 14px;">
+                    <li><strong>+10 Points</strong> for correct cuts.</li>
+                    <li><strong>Streak Bonus:</strong> Cut within <strong>2 seconds</strong> to multiply points!</li>
+                    <li><strong>-5 Points</strong> for cutting the target shape!</li>
+                    <li>Manually <strong>Submit Shape</strong> when you think you are finished.</li>
+                </ul>
+            </div>
+            <input type="text" id="roll-number" placeholder="Enter your Roll Number">
+            <select id="level-select">
+                <option value="1">Start at Level 1: The Cross</option>
+                <option value="2">Start at Level 2: The Frame</option>
+                <option value="3">Start at Level 3: The Core</option>
+            </select>
+            <button class="btn-success" onclick="startInitialGame()">Start Game</button>
+            <button class="btn-secondary" onclick="showScreen('screen-main')">Back</button>
+        </div>
+    </div>
+
+    <div id="screen-teacher" class="screen hidden">
+        <div class="card">
+            <h1>Teacher Login</h1>
+            <input type="password" id="teacher-pass" placeholder="Enter Password">
+            <button onclick="checkPassword()">Login</button>
+            <button class="btn-secondary" onclick="showScreen('screen-main')">Back</button>
+        </div>
+    </div>
+
+    <div id="screen-dashboard" class="screen hidden" style="align-items: flex-start; padding: 20px; overflow-y: auto;">
+        <div style="width: 100%; max-width: 1400px; margin: 0 auto; background: white; padding: 30px; border-radius: 15px; box-shadow: 0 5px 15px rgba(0,0,0,0.1);">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <h2>Teacher Dashboard: Advanced Analytics</h2>
+                <div>
+                    <button class="btn-danger" style="width: auto; padding: 10px 20px; margin-right: 10px;" onclick="clearData()">Clear Data</button>
+                    <button class="btn-secondary" style="width: auto; padding: 10px 20px;" onclick="showScreen('screen-main')">Logout</button>
+                </div>
+            </div>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Roll No.</th>
+                        <th>Level</th>
+                        <th>Score</th>
+                        <th>Cuts (Corr/Err)</th>
+                        <th>Btn Rotations</th>
+                        <th>Cumulative Drag Angles</th>
+                        <th>View Time Distribution (Secs)</th>
+                    </tr>
+                </thead>
+                <tbody id="dashboard-body"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <div id="modal-credits" class="modal hidden">
+        <div class="card">
+            <h2>Credits & Acknowledgements</h2>
+            <p><strong>Developed by:</strong><br>Abhisek Saidarsan & Nikunj D.<br>(IISER Pune)</p>
+            <p style="font-size: 14px; color: #7f8c8d; margin-top: 20px;">
+                Special thanks to AI Assistants <strong>Gemini</strong> and <strong>Claude</strong> for their assistance in writing and structuring the application code for this RMSE project.
+            </p>
+            <button onclick="document.getElementById('modal-credits').classList.add('hidden')">Close</button>
+        </div>
+    </div>
+
+    <div id="game-ui" class="hidden">
+        <div class="hud-panel hud-top-left">
+            <div style="font-size: 14px; color: #7f8c8d;">Roll No: <span id="hud-roll"></span> | Lvl: <span id="hud-level"></span>/3</div>
+            <div>Score: <span id="hud-score" class="score-display">0</span></div>
+            <div id="streak-container" class="streak-display">Streak: x<span id="hud-streak">1</span></div>
+            <div style="font-size: 14px; font-weight: bold; color: #34495e; margin-top: 5px;">
+                Blocks Left: <span id="hud-blocks-left" style="color: #e74c3c;">0</span> | Cut: <span id="hud-blocks-cut" style="color: #3498db;">0</span>
+            </div>
+        </div>
+        
+        <div class="hud-panel hud-top-right">
+            <strong>Target Shape</strong>
+            <div id="target-canvas"></div>
+            <button class="btn-success" style="padding: 8px; font-size: 14px; margin-top: 10px; width: 100%;" onclick="manualSubmit()">Submit Shape</button>
+            <button class="btn-secondary" style="padding: 8px; font-size: 14px; margin-top: 5px; width: 100%;" onclick="skipLevel()">Skip Level</button>
+        </div>
+
+        <div class="hud-bottom">
+            <button onclick="animateRotation('x')">Rot X 90°</button>
+            <button onclick="animateRotation('y')">Rot Y 90°</button>
+            <button onclick="animateRotation('z')">Rot Z 90°</button>
+            <button class="btn-danger" onclick="undoAction()">Undo</button>
+        </div>
+
+        <div class="hud-bottom-right">
+            <button onclick="document.getElementById('modal-credits').classList.remove('hidden')">Credits</button>
+        </div>
+    </div>
+
+    <div id="canvas-container" style="position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 1;"></div>
+    
+    <div id="axes-container">
+        <div id="axes-canvas"></div>
+        <div id="label-x" class="axis-label" style="color: #e74c3c;">X</div>
+        <div id="label-y" class="axis-label" style="color: #2ecc71;">Y</div>
+        <div id="label-z" class="axis-label" style="color: #3498db;">Z</div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+
+    <script>
+        // --- AUDIO SYNTHESIS ENGINE ---
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        let audioCtx;
+
+        function initAudio() {
+            if (!audioCtx) audioCtx = new AudioContext();
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+        }
+
+        function playTone(freq, type, duration, vol=0.1) {
+            initAudio();
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = type;
+            osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+            gain.gain.setValueAtTime(vol, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + duration);
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.start();
+            osc.stop(audioCtx.currentTime + duration);
+        }
+
+        function playCorrect() { playTone(600, 'sine', 0.1); setTimeout(()=>playTone(800, 'sine', 0.15), 100); }
+        function playIncorrect() { playTone(150, 'sawtooth', 0.3, 0.2); }
+        function playVictory() { playTone(400, 'sine', 0.1); setTimeout(()=>playTone(600, 'sine', 0.1), 150); setTimeout(()=>playTone(800, 'sine', 0.4), 300); }
+        function playStreak() { 
+            playTone(400, 'square', 0.1, 0.05); 
+            setTimeout(()=>playTone(600, 'square', 0.1, 0.05), 100); 
+            setTimeout(()=>playTone(800, 'square', 0.2, 0.05), 200); 
+        }
+
+        // --- GAME STATE & SCORING ---
+        let sessionData = {};
+        let score = 0;
+        let streak = 1;
+        let lastCorrectTime = 0;
+        let timePenaltyInterval;
+        let isPlaying = false;
+        let globalRollNo = "";
+        let database = JSON.parse(localStorage.getItem('rmse_data')) || [];
+        
+        let targetCoordinates = [];
+        let currentGridSize = 3;
+        let nonTargetBlocksLeft = 0;
+        let blocksCutCount = 0;
+
+        // --- UI LOGIC ---
+        function showScreen(screenId) {
+            document.querySelectorAll('.screen').forEach(s => s.classList.add('hidden'));
+            if(screenId !== 'none') {
+                const screenEl = document.getElementById(screenId);
+                if (screenEl) screenEl.classList.remove('hidden');
+            }
+        }
+
+        function checkPassword() {
+            if(document.getElementById('teacher-pass').value === '123456789') {
+                updateDashboard();
+                showScreen('screen-dashboard');
+                document.getElementById('teacher-pass').value = '';
+            } else alert("Incorrect Password!");
+        }
+
+        function spawnFloatingCartoon(text, x, y) {
+            const el = document.createElement('div');
+            el.className = 'feedback-popup';
+            el.innerText = text;
+            el.style.left = x + 'px';
+            el.style.top = y + 'px';
+            document.body.appendChild(el);
+            setTimeout(() => el.remove(), 1000);
+        }
+
+        function updateScore(points) {
+            score += points;
+            document.getElementById('hud-score').innerText = score;
+        }
+
+        function handleStreak(isCorrect, mouseX, mouseY) {
+            const now = Date.now();
+            const streakUI = document.getElementById('streak-container');
+            
+            if(isCorrect) {
+                if (now - lastCorrectTime <= 2000 && lastCorrectTime !== 0) {
+                    streak++;
+                    playStreak();
+                    spawnFloatingCartoon("🔥 Streak x" + streak, mouseX, mouseY);
+                } else {
+                    streak = 1;
+                    playCorrect();
+                    spawnFloatingCartoon("✅ Nice!", mouseX, mouseY);
+                }
+                lastCorrectTime = now;
+                streakUI.classList.add('streak-active');
+                setTimeout(() => streakUI.classList.remove('streak-active'), 300);
+            } else {
+                streak = 1;
+                playIncorrect();
+                spawnFloatingCartoon("❌ Oops!", mouseX, mouseY);
+            }
+            document.getElementById('hud-streak').innerText = streak;
+        }
+
+        // --- MAIN 3D SCENE SETUP ---
+        const container = document.getElementById('canvas-container');
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color('#e9ecef');
+        const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
+        camera.position.set(8, 6, 10);
+        
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.shadowMap.enabled = true;
+        container.appendChild(renderer.domElement);
+
+        const controls = new THREE.OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true; controls.dampingFactor = 0.05; controls.enablePan = false;
+
+        scene.add(new THREE.AmbientLight(0xffffff, 0.5));
+        const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+        dirLight.position.set(10, 20, 10);
+        dirLight.castShadow = true;
+        scene.add(dirLight);
+
+        let shapeGroup = new THREE.Group();
+        scene.add(shapeGroup);
+        let targetRot = new THREE.Vector3(0,0,0);
+
+        // --- MINI TARGET SCENE ---
+        const targetContainer = document.getElementById('target-canvas');
+        const targetScene = new THREE.Scene();
+        targetScene.background = new THREE.Color('#e9ecef');
+        const targetCamera = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
+        targetCamera.position.set(6, 5, 8);
+        targetCamera.lookAt(0,0,0);
+        const targetRenderer = new THREE.WebGLRenderer({ antialias: true });
+        targetRenderer.setSize(150, 150);
+        targetContainer.appendChild(targetRenderer.domElement);
+        targetScene.add(new THREE.AmbientLight(0xffffff, 0.7));
+        const tDirLight = new THREE.DirectionalLight(0xffffff, 0.6);
+        tDirLight.position.set(5, 10, 5);
+        targetScene.add(tDirLight);
+        let miniTargetGroup = new THREE.Group();
+        targetScene.add(miniTargetGroup);
+
+        // --- MINI AXES SCENE (Bottom Left) ---
+        const axesCanvasDiv = document.getElementById('axes-canvas');
+        const axesScene = new THREE.Scene();
+        const axesCamera = new THREE.PerspectiveCamera(50, 1, 0.1, 100);
+        const axesRenderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+        axesRenderer.setSize(120, 120);
+        axesCanvasDiv.appendChild(axesRenderer.domElement);
+        const axesHelper = new THREE.AxesHelper(2.5);
+        axesScene.add(axesHelper);
+
+        // --- LEVEL GENERATION LOGIC ---
+        function generateLevelTargets(level) {
+            let coords = [];
+            if(level === 1) {
+                currentGridSize = 3;
+                coords = ["1,1,1", "2,1,1", "0,1,1", "1,2,1", "1,0,1", "1,1,2", "1,1,0"];
+            } else if(level === 2) {
+                currentGridSize = 3;
+                for(let x=0; x<3; x++) for(let y=0; y<3; y++) for(let z=0; z<3; z++) {
+                    let edges = (x===0||x===2) + (y===0||y===2) + (z===0||z===2);
+                    if(edges >= 2) coords.push(`${x},${y},${z}`);
+                }
+            } else if(level === 3) {
+                currentGridSize = 4;
+                for(let x=0; x<4; x++) for(let y=0; y<4; y++) for(let z=0; z<4; z++) {
+                    let isCore = (x===1||x===2) && (y===1||y===2) && (z===1||z===2);
+                    let isCorner = (x===0||x===3) && (y===0||y===3) && (z===0||z===3);
+                    if(isCore || isCorner) coords.push(`${x},${y},${z}`);
+                }
+            }
+            return coords;
+        }
+
+        const geometry = new THREE.BoxGeometry(0.95, 0.95, 0.95);
+        const mainMaterial = new THREE.MeshLambertMaterial({ color: '#3498db' });
+        const targetMaterial = new THREE.MeshLambertMaterial({ color: '#2ecc71' });
+
+        function buildShapes() {
+            while(shapeGroup.children.length > 0) shapeGroup.remove(shapeGroup.children[0]);
+            while(miniTargetGroup.children.length > 0) miniTargetGroup.remove(miniTargetGroup.children[0]);
+            shapeGroup.rotation.set(0,0,0); targetRot.set(0,0,0);
+            
+            const offset = (currentGridSize - 1) / 2;
+            nonTargetBlocksLeft = 0;
+            blocksCutCount = 0;
+
+            for(let x = 0; x < currentGridSize; x++) {
+                for(let y = 0; y < currentGridSize; y++) {
+                    for(let z = 0; z < currentGridSize; z++) {
+                        let coordStr = `${x},${y},${z}`;
+                        let isTarget = targetCoordinates.includes(coordStr);
+                        
+                        const mesh = new THREE.Mesh(geometry, mainMaterial);
+                        mesh.position.set(x - offset, y - offset, z - offset);
+                        mesh.castShadow = true; mesh.receiveShadow = true;
+                        mesh.userData = { coord: coordStr, isTarget: isTarget };
+                        mesh.add(new THREE.LineSegments(new THREE.EdgesGeometry(geometry), new THREE.LineBasicMaterial({ color: 0x000000 })));
+                        shapeGroup.add(mesh);
+
+                        if(isTarget) {
+                            const tMesh = new THREE.Mesh(geometry, targetMaterial);
+                            tMesh.position.set(x - offset, y - offset, z - offset);
+                            tMesh.add(new THREE.LineSegments(new THREE.EdgesGeometry(geometry), new THREE.LineBasicMaterial({ color: 0x000000 })));
+                            miniTargetGroup.add(tMesh);
+                        } else {
+                            nonTargetBlocksLeft++;
+                        }
+                    }
+                }
+            }
+            document.getElementById('hud-blocks-left').innerText = nonTargetBlocksLeft;
+            document.getElementById('hud-blocks-cut').innerText = blocksCutCount;
+        }
+
+        // --- ORBIT CONTROLS TRACKING ---
+        let dragStartAzimuth = 0, dragStartPolar = 0;
+        
+        controls.addEventListener('start', () => {
+            if(!isPlaying) return;
+            dragStartAzimuth = controls.getAzimuthalAngle();
+            dragStartPolar = controls.getPolarAngle();
+        });
+
+        controls.addEventListener('end', () => {
+            if(!isPlaying) return;
+            let deltaAz = Math.abs(controls.getAzimuthalAngle() - dragStartAzimuth);
+            let deltaPol = Math.abs(controls.getPolarAngle() - dragStartPolar);
+            
+            if((deltaAz + deltaPol) > 0.1) { 
+                sessionData.manualRots.count++;
+                sessionData.manualRots.totalAzimuth += deltaAz;
+                sessionData.manualRots.totalPolar += deltaPol;
+            }
+        });
+
+        // --- ADVANCED VIEW TIME TRACKING ---
+        setInterval(() => {
+            if(!isPlaying) return;
+            let camDir = new THREE.Vector3();
+            camera.getWorldDirection(camDir);
+            
+            let cx = Math.abs(camDir.x), cy = Math.abs(camDir.y), cz = Math.abs(camDir.z);
+            
+            if (cx > 0.85) sessionData.viewTime.FaceX += 0.1;
+            else if (cy > 0.85) sessionData.viewTime.FaceY += 0.1;
+            else if (cz > 0.85) sessionData.viewTime.FaceZ += 0.1;
+            else if (cx > 0.45 && cy > 0.45 && cz > 0.45) sessionData.viewTime.Corner += 0.1;
+            else sessionData.viewTime.Edge += 0.1;
+        }, 100);
+
+        // --- INTERACTION LOGIC (Clicking Cubes) ---
+        let undoStack = [];
+        const raycaster = new THREE.Raycaster();
+        const mouse = new THREE.Vector2();
+
+        window.addEventListener('pointerdown', (event) => {
+            if(!isPlaying || event.target.tagName === 'BUTTON') return;
+            
+            initAudio(); 
+            mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+            raycaster.setFromCamera(mouse, camera);
+            
+            const intersects = raycaster.intersectObjects(shapeGroup.children, false);
+            if (intersects.length > 0) {
+                const clickedCube = intersects[0].object;
+                
+                if (clickedCube.userData.isTarget) {
+                    handleStreak(false, event.clientX, event.clientY);
+                    updateScore(-5); // Explicit -5 point penalty
+                    sessionData.errors++;
+                    clickedCube.material.color.setHex(0xe74c3c);
+                    setTimeout(() => clickedCube.material.color.setHex(0x3498db), 300);
+                } else {
+                    handleStreak(true, event.clientX, event.clientY);
+                    updateScore(10 * streak); // Score logic updated: +10 * Streak multiplier
+                    sessionData.correctCuts++;
+                    
+                    nonTargetBlocksLeft--;
+                    blocksCutCount++;
+                    document.getElementById('hud-blocks-left').innerText = nonTargetBlocksLeft;
+                    document.getElementById('hud-blocks-cut').innerText = blocksCutCount;
+                    
+                    shapeGroup.remove(clickedCube);
+                    undoStack.push(clickedCube);
+                }
+            }
+        });
+
+        // --- BUTTON CONTROLS & LOGIC ---
+        window.startInitialGame = function() {
+            globalRollNo = document.getElementById('roll-number').value;
+            if(!globalRollNo) return alert("Please enter a roll number!");
+            const startingLevel = parseInt(document.getElementById('level-select').value);
+            score = 0;
+            startLevel(startingLevel);
+        };
+
+        function startLevel(lvl) {
+            sessionData = { 
+                rollNo: globalRollNo, level: lvl, startTime: Date.now(), 
+                correctCuts: 0, errors: 0, undoes: 0, 
+                btnRot: {x:0, y:0, z:0},
+                manualRots: { count: 0, totalAzimuth: 0, totalPolar: 0 },
+                viewTime: { FaceX: 0, FaceY: 0, FaceZ: 0, Corner: 0, Edge: 0 }
+            };
+            
+            streak = 1; lastCorrectTime = 0; undoStack = [];
+            updateScore(0);
+            document.getElementById('hud-roll').innerText = globalRollNo;
+            document.getElementById('hud-level').innerText = lvl;
+            document.getElementById('hud-streak').innerText = streak;
+
+            targetCoordinates = generateLevelTargets(lvl);
+            buildShapes();
+            
+            showScreen('none'); 
+            document.getElementById('game-ui').classList.remove('hidden');
+            isPlaying = true;
+
+            clearInterval(timePenaltyInterval);
+            timePenaltyInterval = setInterval(() => { if(isPlaying && score > 0) updateScore(-1); }, 5000);
+        }
+
+        window.undoAction = function() {
+            if(undoStack.length > 0) {
+                shapeGroup.add(undoStack.pop());
+                nonTargetBlocksLeft++;
+                blocksCutCount--;
+                document.getElementById('hud-blocks-left').innerText = nonTargetBlocksLeft;
+                document.getElementById('hud-blocks-cut').innerText = blocksCutCount;
+                
+                sessionData.undoes++;
+                updateScore(-2); streak = 1; 
+                document.getElementById('hud-streak').innerText = streak;
+            }
+        }
+
+        window.animateRotation = function(axis) {
+            if(axis === 'x') { targetRot.x += Math.PI / 2; sessionData.btnRot.x++; }
+            if(axis === 'y') { targetRot.y += Math.PI / 2; sessionData.btnRot.y++; }
+            if(axis === 'z') { targetRot.z += Math.PI / 2; sessionData.btnRot.z++; }
+        };
+
+        function saveAndStopTimer() {
+            isPlaying = false;
+            clearInterval(timePenaltyInterval);
+            sessionData.timeTaken = Math.round((Date.now() - sessionData.startTime) / 1000);
+            sessionData.finalScore = score;
+            database.push(sessionData);
+            localStorage.setItem('rmse_data', JSON.stringify(database));
+        }
+
+        function completeLevel() {
+            saveAndStopTimer();
+            playVictory();
+            
+            if (sessionData.level < 3) {
+                alert(`Level ${sessionData.level} Complete!\nCurrent Score: ${score}\nTime: ${sessionData.timeTaken}s\n\nMoving to Level ${sessionData.level + 1}...`);
+                startLevel(sessionData.level + 1);
+            } else {
+                alert(`Game Complete!\nYou finished all levels!\nFinal Score: ${score}`);
+                document.getElementById('game-ui').classList.add('hidden');
+                document.getElementById('roll-number').value = '';
+                showScreen('screen-main');
+            }
+        }
+
+        window.manualSubmit = function() {
+            if (nonTargetBlocksLeft === 0) {
+                completeLevel();
+            } else {
+                if (confirm(`You still have ${nonTargetBlocksLeft} block(s) to remove to reach the target shape! Are you sure you want to submit anyway?`)) {
+                    completeLevel();
+                }
+            }
+        }
+
+        window.skipLevel = function() {
+            if(confirm("Are you sure you want to skip or end this task early?")) {
+                saveAndStopTimer();
+                if (sessionData.level < 3) {
+                    startLevel(sessionData.level + 1);
+                } else {
+                    document.getElementById('game-ui').classList.add('hidden');
+                    document.getElementById('roll-number').value = '';
+                    showScreen('screen-main');
+                }
+            }
+        }
+
+        // --- TEACHER DASHBOARD ---
+        function updateDashboard() {
+            const tbody = document.getElementById('dashboard-body');
+            tbody.innerHTML = '';
+            database.forEach(d => {
+                const manualRots = d.manualRots || { count: 0, totalAzimuth: 0, totalPolar: 0 };
+                const viewTime = d.viewTime || { FaceX: 0, FaceY: 0, FaceZ: 0, Corner: 0, Edge: 0 };
+                const btnRot = d.btnRot || { x: 0, y: 0, z: 0 };
+                const correctCuts = d.correctCuts || 0;
+                const errors = d.errors || 0;
+                const finalScore = d.finalScore || d.score || 0;
+
+                let azDeg = (manualRots.totalAzimuth * (180/Math.PI)).toFixed(0);
+                let polDeg = (manualRots.totalPolar * (180/Math.PI)).toFixed(0);
+
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td><strong>${d.rollNo}</strong></td>
+                    <td>Lvl ${d.level}</td>
+                    <td style="color: #27ae60; font-weight:bold;">${finalScore}</td>
+                    <td><span style="color:green">${correctCuts}</span> / <span style="color:red">${errors}</span></td>
+                    <td class="stats-cell">X:${btnRot.x} | Y:${btnRot.y} | Z:${btnRot.z}</td>
+                    <td class="stats-cell">
+                        Drags: ${manualRots.count}<br>
+                        Y-Axis Shift: ${azDeg}°<br>
+                        XZ-Plane Shift: ${polDeg}°
+                    </td>
+                    <td class="stats-cell">
+                        Face X (1,0,0): ${viewTime.FaceX.toFixed(1)}s<br>
+                        Face Y (0,1,0): ${viewTime.FaceY.toFixed(1)}s<br>
+                        Face Z (0,0,1): ${viewTime.FaceZ.toFixed(1)}s<br>
+                        Corner (1,1,1): ${viewTime.Corner.toFixed(1)}s<br>
+                        Edge/Other: ${viewTime.Edge.toFixed(1)}s
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        window.clearData = function() {
+            if(confirm("Delete all student data?")) {
+                database = [];
+                localStorage.removeItem('rmse_data');
+                updateDashboard();
+            }
+        }
+
+        // --- RENDER LOOP & LABEL UPDATER ---
+        function updateAxisLabel(vector, element) {
+            let vec = new THREE.Vector3().copy(vector);
+            vec.project(axesCamera);
+            // Convert normalized device coordinates to pixels relative to the 120x120 container
+            element.style.left = (vec.x * 0.5 + 0.5) * 120 + 'px';
+            element.style.top = (vec.y * -0.5 + 0.5) * 120 + 'px';
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            // Smooth Rotation interpolation
+            shapeGroup.rotation.x += (targetRot.x - shapeGroup.rotation.x) * 0.1;
+            shapeGroup.rotation.y += (targetRot.y - shapeGroup.rotation.y) * 0.1;
+            shapeGroup.rotation.z += (targetRot.z - shapeGroup.rotation.z) * 0.1;
+
+            // Target Shape rotation
+            miniTargetGroup.rotation.y += 0.01; miniTargetGroup.rotation.x += 0.005;
+
+            // Update main scenes
+            controls.update();
+            renderer.render(scene, camera);
+            targetRenderer.render(targetScene, targetCamera);
+
+            // Sync Mini-Axes with main camera
+            axesCamera.position.copy(camera.position);
+            axesCamera.position.sub(controls.target); 
+            axesCamera.position.setLength(6); 
+            axesCamera.lookAt(axesScene.position);
+            axesRenderer.render(axesScene, axesCamera);
+
+            // Dynamically project label positions onto the HTML elements
+            updateAxisLabel(new THREE.Vector3(3.2, 0, 0), document.getElementById('label-x'));
+            updateAxisLabel(new THREE.Vector3(0, 3.2, 0), document.getElementById('label-y'));
+            updateAxisLabel(new THREE.Vector3(0, 0, 3.2), document.getElementById('label-z'));
+        }
+        animate();
+
+        // Responsive handling
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+    </script>
+</body>
+</html>
